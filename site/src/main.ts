@@ -75,7 +75,7 @@ async function main(): Promise<void> {
     const gen = ++generation;
     const s = store.state;
     const res = picker.pick(map.getZoom());
-    const clamped = res < Math.min(8, Math.max(1, Math.floor(map.getZoom()) ? res : res));
+    const clamped = res >= manifest.max_useful_res && map.getZoom() > 11;
 
     const wantBaseline = s.src === 'features' || s.src === 'difference';
     const haveBaseline = Boolean(manifest.has_baseline);
@@ -112,7 +112,7 @@ async function main(): Promise<void> {
 
     const visible = filterToViewport(rows, map);
     const stats = rowStats(visible);
-    grid.setData(visible, nRef, `${s.axis}/${res}/${s.frame}/${s.src}`, mode);
+    grid.setData(visible, nRef, res, `${s.axis}/${res}/${s.frame}/${s.src}`, mode);
     ui.setReadout(
       res,
       stats.cells,

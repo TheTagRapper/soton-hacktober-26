@@ -21,6 +21,9 @@ import zipfile
 from pathlib import Path
 
 import duckdb
+import pyarrow as pa
+
+from pipeline import bulk
 
 RAW = Path("data/raw/npr.zip")
 WORK = Path("data/work")
@@ -141,13 +144,18 @@ def build(con: duckdb.DuckDBPyConnection) -> dict[str, int]:
         f"[npr] {len(kept):,} events with a precise point; "
         f"{dropped_no_point:,} dropped for having no point (never scattered)"
     )
-    con.execute(
-        "CREATE OR REPLACE TABLE npr_points("
-        "original_id VARCHAR, user_id_raw VARCHAR, created_at VARCHAR,"
-        "lat DOUBLE, lon DOUBLE)"
+    bulk.create_table(
+        con,
+        "npr_points",
+        {
+            "original_id": pa.string(),
+            "user_id_raw": pa.string(),
+            "created_at": pa.string(),
+            "lat": pa.float64(),
+            "lon": pa.float64(),
+        },
+        kept,
     )
-    if kept:
-        con.executemany("INSERT INTO npr_points VALUES (?,?,?,?,?)", kept)
 
     id_col = "id" if "id" in cols else "NULL"
     artist_col = "artist_name" if "artist_name" in cols else "artist_id"

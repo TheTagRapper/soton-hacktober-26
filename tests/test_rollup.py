@@ -17,11 +17,10 @@ import math
 import random
 
 import duckdb
-import h3
 import pytest
 
 from pipeline import rollup, spatial
-from pipeline.oklab import judgement_to_oklab
+from pipeline.cowen import EMOTIONS, blend
 
 TOL = 1e-9
 SEED = 4242
@@ -33,9 +32,8 @@ def _fixture(con: duckdb.DuckDBPyConnection, n_events: int = 4000) -> None:
     metros = [(51.5074, -0.1278), (40.7128, -74.0060), (-23.55, -46.63), (35.68, 139.69)]
     tracks = []
     for i in range(60):
-        L, a, b = judgement_to_oklab(
-            rng.uniform(-1, 1), rng.random(), rng.random(), rng.random(), rng.random()
-        )
+        weights = {name: rng.random() for name in EMOTIONS}
+        L, a, b = blend(weights)
         tracks.append((f"t{i:03d}", L, a, b))
     con.execute(
         "CREATE OR REPLACE TABLE track_colour("
@@ -54,7 +52,7 @@ def _fixture(con: duckdb.DuckDBPyConnection, n_events: int = 4000) -> None:
         lat = lat0 + rng.gauss(0, 0.25)
         lon = lon0 + rng.gauss(0, 0.25)
         key = tracks[rng.randrange(len(tracks))][0]
-        cell = spatial.cell_at(lat, lon, 8)
+        cell = spatial.cell_at(lat, lon, spatial.BASE_RES)
         # Several frames and several users per cell, so suppression and the
         # per-user cap are exercised rather than bypassed.
         rows.append(
@@ -120,17 +118,72 @@ def test_pyramid_equals_direct_aggregation(res: int) -> None:
 
 
 def test_parent_is_total_and_deterministic() -> None:
-    """cell_to_parent is what makes the pyramid well-defined."""
+    """cell_to_parent is what makes the pyramid well-defined.
+
+    H3 children do not tile their parent exactly, which does not matter here:
+    aggregation assigns every cell to exactly one parent, and this asserts
+    that assignment is total, stable and resolution-correct all the way up.
+    """
     rng = random.Random(SEED)
     for _ in range(200):
         lat = rng.uniform(-80, 80)
         lon = rng.uniform(-180, 180)
-        cell8 = spatial.cell_at(lat, lon, 8)
-        chain = cell8
+        base = spatial.cell_at(lat, lon, spatial.BASE_RES)
+        chain = base
         for res in [7, 6, 5, 4, 3, 2, 1]:
-            chain = spatial.parent_int(chain, res)
-            assert chain == spatial.parent_int(cell8, res), "parent chain must be total"
-            assert h3.get_resolution(h3.int_to_str(chain)) == res
+            chain = spatial.parent_cell(chain, res)
+            assert chain == spatial.parent_cell(base, res), "parent chain must be total"
+            assert spatial.cell_resolution(chain) == res
+
+
+def test_every_cell_has_exactly_one_parent() -> None:
+    rng = random.Random(SEED)
+    seen: dict[int, int] = {}
+    for _ in range(3000):
+        lat = rng.uniform(-85, 85)
+        lon = rng.uniform(-180, 180)
+        child = spatial.cell_at(lat, lon, 7)
+        parent = spatial.parent_cell(child, 4)
+        assert seen.setdefault(child, parent) == parent, "a cell must have one parent"
+
+
+def test_cells_are_near_equal_area() -> None:
+    """Near-equal-area is the whole reason the grid is H3 and not Mercator
+    squares: colour per area of human listening has to mean the same thing in
+    Svalbard as on the equator.
+
+    "Near" is doing real work and this test pins down how much. Measured over
+    a uniform sample from 85S to 85N, the largest H3 cell at a resolution is
+    about 2.3x the smallest. A Web-Mercator square grid over the same span
+    would vary by roughly cos(85 deg)^-2, about 130x. The claim this grid
+    supports is "comparable areas", not "identical areas", and the drawn
+    circles use the resolution's average area accordingly.
+    """
+    import h3
+
+    for res in (2, 5, 8):
+        avg = spatial.cell_area_m2(res)
+        rng = random.Random(SEED + res)
+        areas = []
+        for _ in range(300):
+            lat = rng.uniform(-85, 85)
+            lon = rng.uniform(-180, 180)
+            areas.append(
+                h3.cell_area(h3.int_to_str(spatial.cell_at(lat, lon, res)), unit="m^2")
+            )
+        spread = max(areas) / min(areas)
+        assert spread < 2.5, f"res {res}: cell areas vary by {spread:.2f}x"
+        assert 0.9 < (sum(areas) / len(areas)) / avg < 1.1
+
+
+def test_drawn_circle_matches_cell_area() -> None:
+    """The map draws circles, not hexagons; they must cover the area the cell
+    actually represents, or the picture overstates its own coverage."""
+    import math
+
+    for res in spatial.RESOLUTIONS:
+        r = spatial.cell_radius_m(res)
+        assert math.isclose(math.pi * r * r, spatial.cell_area_m2(res), rel_tol=1e-12)
 
 
 def test_suppression_thresholds_are_the_locked_ones() -> None:

@@ -11,9 +11,17 @@ size 1 with 4-8 concurrent requests -- because llama-server's
 converts the schema to a GBNF grammar, which is the same mechanism Ollama's
 `format` uses. Set COLOUR_BACKEND=ollama to use the spec's runtime verbatim.
 
-The model does NOT output RGB (section 6.1). It returns five perceptual
-judgements plus era/confidence/note, and oklab.py turns those into colour
-deterministically, so the palette can be retuned without re-running inference.
+The model does NOT output RGB. It rates the recording on the **thirteen
+dimensions of music-evoked emotion** from Cowen, Fang, Sauter & Keltner (PNAS
+2020), and pipeline/cowen.py blends that profile deterministically against the
+palette from Alan Cowen's published map of those dimensions. This keeps the
+mapping auditable, keeps averaging meaningful, and means the palette can be
+retuned without re-running hours of inference.
+
+This replaces the five free-floating perceptual axes the original
+specification asked for, at the operator's instruction: the axes are now a
+published, peer-reviewed taxonomy of what music actually makes people feel,
+and the colours are the ones that taxonomy is drawn in.
 """
 
 from __future__ import annotations
@@ -30,7 +38,8 @@ from pathlib import Path
 import duckdb
 import httpx
 
-from pipeline.oklab import judgement_to_oklch
+from pipeline.cowen import EMOTIONS, LABELS, blend
+from pipeline.oklab import oklab_to_oklch
 
 # Overridable only so that a dev-preview run (pipeline/colour_stub.py) can be
 # kept out of the committed cache. The real cache is the default and is the
@@ -47,7 +56,13 @@ SYSTEM_PROMPT = (
     "title, you judge the sound of the recording. You answer only with the "
     "requested JSON object. If you do not recognise the track, infer from the "
     "artist and from the conventions of what you can tell of the genre, and "
-    "lower `confidence` accordingly. Never refuse. Never explain."
+    "lower `confidence` accordingly. Never refuse. Never explain.\n\n"
+    "Each of the thirteen emotion fields is how strongly a listener would "
+    "report feeling that way while the recording plays, from 0.0 (not at all) "
+    "to 1.0 (overwhelmingly). They are not a probability distribution and need "
+    "not sum to 1: a song can be both joyful and energizing, or neither. Rate "
+    "the feeling the music evokes, not the subject of the lyrics. Most "
+    "recordings score high on only two or three."
 )
 
 # --- section 6.1, LOCKED -----------------------------------------------------
@@ -55,31 +70,23 @@ SYSTEM_PROMPT = (
 JUDGEMENT_SCHEMA = {
     "type": "object",
     "properties": {
-        "valence": {"type": "number", "minimum": -1, "maximum": 1},
-        "arousal": {"type": "number", "minimum": 0, "maximum": 1},
-        "warmth": {"type": "number", "minimum": 0, "maximum": 1},
-        "density": {"type": "number", "minimum": 0, "maximum": 1},
-        "grain": {"type": "number", "minimum": 0, "maximum": 1},
+        **{
+            name: {"type": "number", "minimum": 0, "maximum": 1}
+            for name in EMOTIONS
+        },
         "era": {"type": "integer", "minimum": 1900, "maximum": 2025},
         "confidence": {"type": "number", "minimum": 0, "maximum": 1},
         "note": {"type": "string", "maxLength": 80},
     },
-    "required": [
-        "valence", "arousal", "warmth", "density", "grain",
-        "era", "confidence", "note",
-    ],
+    "required": [*EMOTIONS, "era", "confidence", "note"],
     "additionalProperties": False,
 }
 
-AXES = ("valence", "arousal", "warmth", "density", "grain")
-RANGES = {
-    "valence": (-1.0, 1.0),
-    "arousal": (0.0, 1.0),
-    "warmth": (0.0, 1.0),
-    "density": (0.0, 1.0),
-    "grain": (0.0, 1.0),
-    "confidence": (0.0, 1.0),
-}
+# The thirteen Cowen dimensions, plus the model's own certainty. Reported as
+# histograms by pipeline/audit.py: if these come back nearly constant, the
+# model has not listened and the map would be monochrome.
+AXES = EMOTIONS
+RANGES = {name: (0.0, 1.0) for name in (*EMOTIONS, "confidence")}
 
 OPTIONS = {"temperature": 0.2, "top_p": 0.9, "seed": SEED, "num_ctx": 2048}
 
@@ -304,7 +311,13 @@ async def run(tracks: list[Track], concurrency: int) -> None:
                     async with lock:
                         rate.tick(False)
                     return
-                L, C, h = judgement_to_oklch(*(judgement[a] for a in AXES))
+                lab = blend({name: judgement[name] for name in EMOTIONS})
+                if lab is None:
+                    # No emotional signal at all: excluded rather than guessed.
+                    async with lock:
+                        rate.tick(False)
+                    return
+                L, C, h = oklab_to_oklch(*lab)
                 rec = {
                     "track_key": t.track_key,
                     "artist_norm": t.artist_norm,

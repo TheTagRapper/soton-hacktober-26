@@ -35,8 +35,17 @@ export function createMap(container: HTMLElement, store: Store): maplibregl.Map 
   return map;
 }
 
-/** The basemap's first symbol layer: deck.gl draws beneath it so labels stay readable. */
-export function firstLabelLayerId(map: maplibregl.Map): string | undefined {
+/** Where the colour field is inserted into the basemap's layer stack.
+ *
+ * Everything that carries geographic *information* -- country and state
+ * boundaries, coastlines, roads, and every label from country down to town --
+ * must draw on top of the colour, or the map stops being a map. So the overlay
+ * goes immediately below the first boundary or label layer, and above the
+ * landcover and water fills that are only there to be recognisable. */
+export function firstOverlayBeforeId(map: maplibregl.Map): string | undefined {
   const layers = map.getStyle()?.layers ?? [];
-  return layers.find((l) => l.type === 'symbol')?.id;
+  const wanted = /boundar|admin|place|label|poi|road|street|transport|bridge|tunnel/i;
+  const byId = layers.find((l) => wanted.test(l.id));
+  if (byId) return byId.id;
+  return layers.find((l) => l.type === 'symbol' || l.type === 'line')?.id;
 }

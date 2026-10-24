@@ -17,8 +17,9 @@ import random
 from pathlib import Path
 
 import duckdb
+import pyarrow as pa
 
-from pipeline import spatial
+from pipeline import bulk, spatial
 from pipeline.spatial import BASE_RES, GEO_ENUM, RESOLUTIONS
 
 WORK = Path("data/work")
@@ -79,12 +80,19 @@ def load_inputs(con: duckdb.DuckDBPyConnection, colour_table: str) -> None:
                 spatial.frame_dow(ld.weekday()),
             )
         )
-    con.execute(
-        "CREATE OR REPLACE TABLE ev_idx("
-        "event_id VARCHAR, cell UBIGINT, f_solar VARCHAR, solar_src VARCHAR,"
-        "f_chrono VARCHAR, f_dow VARCHAR)"
+    bulk.create_table(
+        con,
+        "ev_idx",
+        {
+            "event_id": pa.string(),
+            "cell": pa.uint64(),
+            "f_solar": pa.string(),
+            "solar_src": pa.string(),
+            "f_chrono": pa.string(),
+            "f_dow": pa.string(),
+        },
+        indexed,
     )
-    con.executemany("INSERT INTO ev_idx VALUES (?,?,?,?,?,?)", indexed)
     con.execute(
         """
         CREATE OR REPLACE TABLE events_idx AS
@@ -140,7 +148,7 @@ def build_pyramid(
 
     con.execute(
         f"""
-        CREATE OR REPLACE TABLE {prefix}_8 AS
+        CREATE OR REPLACE TABLE {prefix}_{BASE_RES} AS
         SELECT
           e.frame,
           e.cell                      AS cell,
@@ -160,11 +168,10 @@ def build_pyramid(
         cells = [
             r[0] for r in con.execute(f"SELECT DISTINCT cell FROM {prefix}_{child}").fetchall()
         ]
-        con.execute(
-            f"CREATE OR REPLACE TABLE parent_{res}(cell UBIGINT, parent UBIGINT)"
-        )
-        con.executemany(
-            f"INSERT INTO parent_{res} VALUES (?,?)",
+        bulk.create_table(
+            con,
+            f"parent_{res}",
+            {"cell": pa.uint64(), "parent": pa.uint64()},
             [(c, spatial.parent_int(c, res)) for c in cells],
         )
         con.execute(

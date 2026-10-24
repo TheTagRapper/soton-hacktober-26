@@ -127,3 +127,34 @@ def weighted_mean(items: list[tuple[Lab, float]]) -> Lab:
 def delta_e(p: Lab, q: Lab) -> float:
     """Euclidean distance in Oklab -- the honest delta-E for this space."""
     return math.sqrt((p.L - q.L) ** 2 + (p.a - q.a) ** 2 + (p.b - q.b) ** 2)
+
+
+# --- sRGB -> Oklab, for fixed palette entries ---------------------------------
+# Needed because the Cowen emotion palette (pipeline/cowen.py) is specified in
+# sRGB. Palette entries are converted once, at import, and everything
+# downstream averages in Oklab as usual.
+
+
+def srgb_to_linear(c: float) -> float:
+    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+
+def srgb_to_oklab(r: float, g: float, b: float) -> tuple[float, float, float]:
+    """r, g, b in 0..1 (sRGB, gamma-encoded)."""
+    lr, lg, lb = srgb_to_linear(r), srgb_to_linear(g), srgb_to_linear(b)
+    l = 0.4122214708 * lr + 0.5363325363 * lg + 0.0514459929 * lb
+    m = 0.2119034982 * lr + 0.6806995451 * lg + 0.1073969566 * lb
+    s = 0.0883024619 * lr + 0.2817188376 * lg + 0.6299787005 * lb
+    l_ = math.copysign(abs(l) ** (1 / 3), l)
+    m_ = math.copysign(abs(m) ** (1 / 3), m)
+    s_ = math.copysign(abs(s) ** (1 / 3), s)
+    return (
+        0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
+        1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
+        0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_,
+    )
+
+
+def hex_to_oklab(hex_colour: str) -> tuple[float, float, float]:
+    h = hex_colour.lstrip("#")
+    return srgb_to_oklab(*(int(h[i : i + 2], 16) / 255.0 for i in (0, 2, 4)))

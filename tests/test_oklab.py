@@ -1,9 +1,10 @@
-"""The Python and TypeScript Oklab implementations must agree (spec 14.2).
+"""The Python and TypeScript colour implementations must agree.
 
-Two ports of a LOCKED formula is the obvious place for this project to drift:
-the pipeline would bake one palette into the shards and the browser would
-render another. This test is the guard. It runs the real site/src/colour.ts
-through Node and compares to 1e-9 over the 500-point shared fixture.
+Two ports of the same palette and the same blend is the obvious place for this
+project to drift: the pipeline would bake one set of colours into the shards
+and the browser would render another, and nothing would look obviously broken.
+This test is the guard. It runs the real site/src/colour.ts through Node and
+compares to 1e-9 over a 500-profile shared fixture.
 """
 
 from __future__ import annotations
@@ -35,6 +36,17 @@ def test_fixture_is_well_formed(vectors: list[dict]) -> None:
     assert len(vectors) == 500
     hues = {round(v["oklch"]["h"], 6) for v in vectors}
     assert len(hues) > 100, "fixture should sweep the hue circle, not cluster"
+
+
+def test_single_emotion_reproduces_its_palette_colour() -> None:
+    """A song that is purely one emotion must come out exactly that colour."""
+    from pipeline.cowen import EMOTIONS, PALETTE_SRGB, blend
+    from pipeline.oklab import oklab_to_hex
+
+    for name in EMOTIONS:
+        lab = blend({k: (1.0 if k == name else 0.0) for k in EMOTIONS})
+        assert lab is not None
+        assert oklab_to_hex(*lab) == PALETTE_SRGB[name][0]
 
 
 def test_python_and_typescript_agree(vectors: list[dict]) -> None:

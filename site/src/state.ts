@@ -51,7 +51,9 @@ export interface Manifest {
   backend?: string;
   axes: Record<string, { frames: string[]; label: string }>;
   resolutions: number[];
+  base_res: number;
   max_useful_res: number;
+  cell_radius_m?: Record<string, number>;
   cells_per_res: Record<string, number>;
   cells_per_res_per_axis?: Record<string, Record<string, number>>;
   has_baseline?: boolean;
@@ -63,7 +65,13 @@ export interface Manifest {
   n_tracks_artist_fallback?: number;
   n_tracks_uncoloured: number;
   suppression?: { min_n: number; min_n_users_ub: number; user_cap_per_cell_frame: number };
-  colour_axes: Record<string, string>;
+  colour_model?: {
+    palette: string;
+    blend: string;
+    emotions: Record<string, string>;
+    labels: Record<string, string>;
+  };
+  grid?: { kind: string; drawn_as: string };
   dow_labels?: string[];
   sources?: Array<{ name: string; citation?: string; url: string; licence: string }>;
   n_notes?: number;

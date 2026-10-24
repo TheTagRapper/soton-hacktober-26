@@ -15,6 +15,7 @@ from pathlib import Path
 import duckdb
 
 from pipeline.colour_model import AXES
+from pipeline.cowen import LABELS
 from pipeline.spatial import RESOLUTIONS
 
 REPORT = Path("reports/audit.md")
@@ -74,6 +75,8 @@ def run(con: duckdb.DuckDBPyConnection, stats: dict, manifest: dict) -> str:
     ):
         if k in stats:
             lines.append(f"| {k.replace('_', ' ')} | {stats[k]:,} |")
+    if stats.get("span_start"):
+        lines.append(f"| time span | {stats['span_start']} .. {stats['span_end']} |")
 
     lines += [
         "",
@@ -106,8 +109,8 @@ def run(con: duckdb.DuckDBPyConnection, stats: dict, manifest: dict) -> str:
         "",
         "| metric | value |",
         "|---|---|",
-        f"| cell-frames before suppression (res 8, solar) | {stats.get('pre_suppression_r8', 0):,} |",
-        f"| cell-frames after suppression (res 8, solar) | {stats.get('post_suppression_r8', 0):,} |",
+        f"| cell-frames before suppression (res 8, solar) | {stats.get('pre_suppression_base', 0):,} |",
+        f"| cell-frames after suppression (res 8, solar) | {stats.get('post_suppression_base', 0):,} |",
         f"| events removed by the per-user cap (solar) | {stats.get('solar_capped_events', 0):,} |",
         f"| events behind suppressed cell-frames | {stats.get('n_events_suppressed', 0):,} |",
         "",
@@ -141,19 +144,19 @@ def run(con: duckdb.DuckDBPyConnection, stats: dict, manifest: dict) -> str:
             f"· max = {max(ns):,}" if ns else f"- res {res}: no cells"
         )
 
-    lines += ["", "## Judgement axes", ""]
+    lines += ["", "## Emotion dimensions (Cowen et al. 2020)", ""]
     flat = False
     for axis in AXES:
         vals = [r[0] for r in q(f"SELECT {axis} FROM model_judgement")]
         if not vals:
             lines += [f"### {axis}", "", "  (no model records)", ""]
             continue
-        lo, hi = (-1.0, 1.0) if axis == "valence" else (0.0, 1.0)
+        lo, hi = 0.0, 1.0
         sd = statistics.pstdev(vals) if len(vals) > 1 else 0.0
         if sd < SPREAD_MIN_STDEV:
             flat = True
         lines += [
-            f"### {axis} — n={len(vals):,} mean={statistics.fmean(vals):+.3f} "
+            f"### {LABELS.get(axis, axis)} — n={len(vals):,} mean={statistics.fmean(vals):+.3f} "
             f"sd={sd:.3f} min={min(vals):+.2f} max={max(vals):+.2f}",
             "",
             "```",
@@ -175,7 +178,7 @@ def run(con: duckdb.DuckDBPyConnection, stats: dict, manifest: dict) -> str:
     lines += ["## Verdict", ""]
     if flat:
         lines += [
-            "**STOP — at least one judgement axis is effectively constant "
+            "**STOP — at least one emotion dimension is effectively constant "
             f"(population sd < {SPREAD_MIN_STDEV}).** The model has given nearly "
             "everything the same answer on that axis, which will ship a monochrome "
             "map. Retune the system prompt or the model before deploying; do not "
@@ -184,7 +187,7 @@ def run(con: duckdb.DuckDBPyConnection, stats: dict, manifest: dict) -> str:
         ]
     else:
         lines += [
-            "All five judgement axes are spread (population sd >= "
+            f"All {len(AXES)} emotion dimensions are spread (population sd >= "
             f"{SPREAD_MIN_STDEV} on each). The colour field will vary.",
             "",
         ]

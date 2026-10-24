@@ -19,24 +19,25 @@ import sys
 import time
 
 from pipeline.colour_model import CACHE, append, select_tracks, write_header
-from pipeline.oklab import judgement_to_oklch
+from pipeline.cowen import EMOTIONS, blend
+from pipeline.oklab import oklab_to_oklch
 
 TAG = "stub:dev-preview"
 
 
 def fake(track_key: str) -> dict:
     h = hashlib.sha256(f"stub/{track_key}".encode()).digest()
-    u = [b / 255.0 for b in h[:6]]
-    return {
-        "valence": round(u[0] * 2 - 1, 3),
-        "arousal": round(u[1], 3),
-        "warmth": round(u[2], 3),
-        "density": round(u[3], 3),
-        "grain": round(u[4], 3),
-        "era": 1960 + int(u[5] * 60),
-        "confidence": 0.9,
-        "note": "",
-    }
+    u = [b / 255.0 for b in h]
+    # Two or three dominant emotions per track, like a real profile.
+    j = {name: round(u[i] * 0.25, 3) for i, name in enumerate(EMOTIONS)}
+    for k in range(2 + int(u[20] * 2)):
+        j[EMOTIONS[int(u[14 + k] * len(EMOTIONS)) % len(EMOTIONS)]] = round(
+            0.55 + u[17 + k] * 0.45, 3
+        )
+    j["era"] = 1960 + int(u[13] * 60)
+    j["confidence"] = 0.9
+    j["note"] = ""
+    return j
 
 
 def main() -> int:
@@ -53,7 +54,10 @@ def main() -> int:
     write_header(TAG, "stub", {"warning": "dev preview, not model output"})
     for t in tracks:
         j = fake(t.track_key)
-        L, C, h = judgement_to_oklch(j["valence"], j["arousal"], j["warmth"], j["density"], j["grain"])
+        lab = blend({name: j[name] for name in EMOTIONS})
+        if lab is None:
+            continue
+        L, C, h = oklab_to_oklch(*lab)
         append(
             {
                 "track_key": t.track_key,

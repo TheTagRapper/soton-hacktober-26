@@ -11,7 +11,7 @@ import json
 import sys
 from pathlib import Path
 
-from pipeline import audit, colour_baseline, colour_table, export, ingest_npr, rollup
+from pipeline import audit, colour_baseline, colour_table, export, ingest_npr, rollup, spatial
 
 STATS = Path("data/work/stats.json")
 
@@ -43,12 +43,15 @@ def main(argv: list[str]) -> int:
 
     manifest = export.run(con, stats)
 
-    stats["pre_suppression_r8"] = con.execute("SELECT count(*) FROM agg_8").fetchone()[0]
-    stats["post_suppression_r8"] = con.execute(
-        "SELECT count(*) FROM agg_sup_8"
+    base = spatial.BASE_RES
+    stats["pre_suppression_base"] = con.execute(
+        f"SELECT count(*) FROM agg_{base}"
+    ).fetchone()[0]
+    stats["post_suppression_base"] = con.execute(
+        f"SELECT count(*) FROM agg_sup_{base}"
     ).fetchone()[0]
     stats["n_events_suppressed"] = con.execute(
-        f"SELECT coalesce(sum(n), 0) FROM agg_8 "
+        f"SELECT coalesce(sum(n), 0) FROM agg_{base} "
         f"WHERE NOT (n >= {rollup.MIN_N} AND n_users_ub >= {rollup.MIN_USERS})"
     ).fetchone()[0]
     manifest["n_events_suppressed"] = stats["n_events_suppressed"]

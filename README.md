@@ -65,27 +65,45 @@ artefact is static files. No model is ever called from the browser.
 ## How a song becomes a colour
 
 The model is **not** asked for a colour. Language models choose bad RGB triples
-and cluster on named web colours. It is asked for eight judgements about how the
-recording *sounds* — `valence`, `arousal`, `warmth`, `density`, `grain`, the
-decade it sounds like, its own `confidence`, and one note of 80 characters or
-fewer — and deterministic code converts those to Oklch:
+and cluster on named web colours. It is asked how strongly a listener would feel
+each of the **thirteen dimensions of music-evoked emotion** from
 
-```
-hue        h = (210 - 150 * valence) mod 360
-chroma     C = 0.02 + 0.13 * (0.65*arousal + 0.35*density)
-lightness  L = 0.38 + 0.34 * warmth - 0.10 * grain
-```
+> Cowen, A. S., Fang, X., Sauter, D., & Keltner, D. (2020). *What music makes us
+> feel: At least 13 dimensions organize subjective experiences associated with
+> music across different cultures.* PNAS 117(4), 1924–1934.
 
-This keeps the mapping auditable, keeps averaging meaningful, and means the
-palette can be retuned without re-running hours of inference. `era` and
-`confidence` are carried through and exposed as filters but do not affect
-colour in v1.
+and the song's colour is the blend of that paper's own published palette —
+the colours used on [Cowen's interactive map of those
+dimensions](https://www.ocf.berkeley.edu/~acowen/music.html) — weighted by those
+ratings and mixed in Oklab:
 
-The formula lives twice — `pipeline/oklab.py` and `site/src/colour.ts` — because
-one half of the project is Python and the other is a browser.
-`tests/test_oklab.py` runs the real TypeScript through Node and asserts the two
-agree to **1e-9** over a 500-point shared fixture, so the shards and the
-renderer cannot drift apart.
+| | | | |
+|---|---|---|---|
+| `#0000ff` amusing | `#ff0000` annoying | `#ffd300` anxious, tense | `#ffc184` beautiful |
+| `#ff1ab9` calm, relaxing, serene | `#00ff00` dreamy | `#d312ff` energizing, pump-up | `#8484ff` erotic, desirous |
+| `#f69edc` indignant, defiant | `#00ffc1` joyful, cheerful | `#008495` sad, depressing | `#cccc33` scary, fearful |
+| `#9e4f46` triumphant, heroic | | | |
+
+The axes are therefore a published, peer-reviewed taxonomy of what music
+actually makes people feel, rather than five axes invented for this project, and
+the colours are the ones that taxonomy is drawn in. `era`, `confidence` and the
+model's one-line `note` are carried through: the first two are exposed as
+filters, the third is shown in the hover label.
+
+**One judgement call, stated plainly.** Several of those thirteen colours are
+near-complementary — joyful is a cyan-green, calm a magenta — so a flat blend of
+a song scoring moderately on many dimensions lands on grey, and averaging places
+together would then grey the whole map. Ratings are raised to the power **2.5**
+before blending, which lets the feelings a listener would actually name dominate
+the ones that merely registered. Set `SHARPEN = 1.0` in `pipeline/cowen.py` and
+`site/src/colour.ts` for the flat mean.
+
+The palette and the blend live twice — `pipeline/cowen.py` and
+`site/src/colour.ts` — because one half of the project is Python and the other is
+a browser. `tests/test_oklab.py` runs the real TypeScript through Node and
+asserts the two agree to **1e-9** over a 500-profile shared fixture, and that a
+song rated purely one emotion comes out exactly that palette colour, so the
+shards and the renderer cannot drift apart.
 
 ### Why the zoom is honest
 
@@ -101,6 +119,26 @@ events. `tests/test_rollup.py` asserts on a synthetic fixture that the res-5
 colour computed through 8 → 7 → 6 → 5 equals the res-5 colour computed directly
 from the events, to 1e-9, at res 7, 6 and 5. If that test fails, the zoom ladder
 is lying and nothing else in the project matters.
+
+## The grid, and why it is drawn as circles
+
+Aggregation is on **H3 hexagons**, resolutions 8 to 1. A Web-Mercator square
+grid would make a cell in Svalbard represent a tiny fraction of the ground area
+of one on the equator, so "colour per area of human listening" would be silently
+false. H3 cells are near-equal-area — measured over a uniform sample from 85°S to
+85°N the largest cell at a resolution is about **2.3×** the smallest, against
+roughly 130× for Mercator squares over the same span. `tests/test_rollup.py`
+pins that figure down rather than letting "near-equal-area" go unexamined.
+
+Each cell is **drawn as a circle of the same area as its hexagon**, with a soft
+radial falloff and a radius 1.45× the equal-area circle, so neighbouring cells
+overlap and the picture reads as a continuous field of mood rather than a
+honeycomb. The painted area still matches the area the cell represents;
+`test_drawn_circle_matches_cell_area` asserts that at every resolution.
+
+The circles are interleaved into the basemap **beneath** its boundary, road and
+label layers, so country, state and city lines and place names stay legible on
+top of the colour at every zoom.
 
 ## The colour model
 
@@ -221,11 +259,17 @@ the real data, the real data wins. Three places where it was:
 1. **MMTD is one denormalised 936 MB TSV with 291 columns**, not the separate
    id-joined event/track/artist/place tables the spec predicted. See
    `DATA_LICENCES.md` for the schema actually found and used.
-2. **deck.gl 9.4's `H3HexagonLayer` has no `stitching` prop** — the
-   low-precision path it belonged to was removed upstream. `highPrecision:
-   'auto'` covers the case it existed for.
-3. **The runtime is llama.cpp, not Ollama**, by operator instruction; see *The
+2. **The runtime is llama.cpp, not Ollama**, by operator instruction; see *The
    colour model* above for how each locked requirement is still met.
+3. **The colour axes are Cowen et al.'s thirteen emotion dimensions**, not the
+   five perceptual axes the specification locked, by operator instruction — and
+   the palette is that paper's own. Everything the specification locked *about*
+   colour still holds: the model never emits RGB, the judgement-to-colour step is
+   deterministic and auditable in one place, and all averaging is in Oklab.
+4. **Cells are drawn as overlapping soft circles**, not as filled hexagons, by
+   operator instruction. The aggregation grid is unchanged; only the mark is.
+   deck.gl's `ScatterplotLayer` is subclassed to add the radial falloff, so
+   `H3HexagonLayer` and its missing-in-9.4 `stitching` prop are no longer used.
 
 Additionally, `uv` and the DuckDB `h3` community extension were unavailable
 here. The project uses a stdlib venv with pip against the same

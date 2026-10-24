@@ -8,14 +8,16 @@ Outputs (both gitignored working data):
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import sys
 import unicodedata
 from pathlib import Path
 
 import duckdb
+import pyarrow as pa
 
-from pipeline import ingest_mmtd
+from pipeline import bulk, ingest_mmtd
 
 WORK = Path("data/work")
 EVENTS = WORK / "events.parquet"
@@ -99,18 +101,26 @@ def _derive(con: duckdb.DuckDBPyConnection, table: str) -> None:
         if not a or not t:
             continue
         rows.append((artist_raw, title_raw, a, t, track_key(a, t)))
-    con.execute(
-        "CREATE OR REPLACE TABLE pair_norm("
-        "artist_raw VARCHAR, title_raw VARCHAR,"
-        "artist_norm VARCHAR, title_norm VARCHAR, track_key VARCHAR)"
+    bulk.create_table(
+        con,
+        "pair_norm",
+        {
+            "artist_raw": pa.string(),
+            "title_raw": pa.string(),
+            "artist_norm": pa.string(),
+            "title_norm": pa.string(),
+            "track_key": pa.string(),
+        },
+        rows,
     )
-    con.executemany("INSERT INTO pair_norm VALUES (?,?,?,?,?)", rows)
 
     users = [r[0] for r in con.execute(f"SELECT DISTINCT user_id_raw FROM {table}").fetchall()]
     print(f"[normalise] hashing {len(users):,} distinct users")
-    con.execute("CREATE OR REPLACE TABLE user_norm(user_id_raw VARCHAR, user_hash VARCHAR)")
-    con.executemany(
-        "INSERT INTO user_norm VALUES (?,?)", [(u, user_hash(u)) for u in users]
+    bulk.create_table(
+        con,
+        "user_norm",
+        {"user_id_raw": pa.string(), "user_hash": pa.string()},
+        [(u, user_hash(u)) for u in users],
     )
 
 
@@ -168,8 +178,12 @@ def build(con: duckdb.DuckDBPyConnection | None = None) -> dict[str, int]:
         " FROM events"
     ).fetchone()
     print(f"[normalise] time span {span[0]} .. {span[1]}")
+    report["span_start"], report["span_end"] = span
+    # Persisted so `make audit` can report per-rule drop counts without
+    # re-reading the 936 MB TSV.
+    (WORK / "normalise_stats.json").write_text(json.dumps(report, indent=1))
     for k, v in report.items():
-        print(f"[normalise] {k}: {v:,}")
+        print(f"[normalise] {k}: {v:,}" if isinstance(v, int) else f"[normalise] {k}: {v}")
     print(f"[normalise] wrote {EVENTS} and {TRACKS}")
     return report
 

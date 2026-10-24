@@ -21,6 +21,7 @@ export interface Row {
 
 export interface Frame {
   key: string;
+  res: number;
   rows: Row[];
   /** 95th percentile of n, the alpha reference for this frame. */
   nRef: number;
@@ -86,7 +87,7 @@ export class ShardStore {
           return null;
         }
         const buf = await res0.arrayBuffer();
-        const frameObj = decode(k, buf);
+        const frameObj = decode(k, buf, res);
         this.put(k, frameObj);
         return frameObj;
       } catch {
@@ -116,7 +117,7 @@ export class ShardStore {
   }
 }
 
-function decode(key: string, buf: ArrayBuffer): Frame {
+function decode(key: string, buf: ArrayBuffer, res: number): Frame {
   const table = tableFromIPC(new Uint8Array(buf));
   const cell = table.getChild('cell')!;
   const n = table.getChild('n')!;
@@ -137,7 +138,7 @@ function decode(key: string, buf: ArrayBuffer): Frame {
       b: Number(b.get(i)),
     };
   }
-  return { key, rows, nRef: percentile(rows.map((r) => r.n), 95) };
+  return { key, res, rows, nRef: percentile(rows.map((r) => r.n), 95) };
 }
 
 export function percentile(values: number[], p: number): number {

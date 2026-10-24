@@ -25,7 +25,8 @@ import pyarrow as pa
 import pyarrow.ipc as ipc
 
 from pipeline import rollup
-from pipeline.spatial import DOW_LABELS, GEO_ENUM, RESOLUTIONS
+from pipeline.cowen import EMOTIONS, LABELS, PALETTE_SRGB, SHARPEN as COWEN_SHARPEN
+from pipeline.spatial import BASE_RES, DOW_LABELS, GEO_ENUM, RESOLUTIONS, cell_radius_m
 
 DATA_VERSION = os.environ.get("DATA_VERSION", "v1")
 OUT = Path("site/public/data") / DATA_VERSION
@@ -120,9 +121,10 @@ def max_useful_res(cells_per_res: dict[int, int], n_frames: int) -> int:
     """Deepest resolution where surviving cells per frame number 500 or more.
 
     Computed, never assumed: with MMTD alone this may well be 6 or 7, and the
-    front end has to handle that rather than showing an empty map at zoom 14.
+    front end has to clamp its zoom ladder to it rather than showing an empty
+    map when the viewer zooms past what the data can support.
     """
-    best = RESOLUTIONS[-1]
+    best = min(RESOLUTIONS)
     for res in sorted(cells_per_res):
         if cells_per_res[res] / max(1, n_frames) >= USEFUL_RES_MIN_CELLS:
             best = max(best, res)
@@ -189,7 +191,9 @@ def run(con: duckdb.DuckDBPyConnection, stats: dict) -> dict:
         "sources": [dict(s, events_used=stats.get("n_events_total", 0)) for s in SOURCES],
         "axes": axes_meta,
         "resolutions": sorted(RESOLUTIONS),
+        "base_res": BASE_RES,
         "max_useful_res": max_useful_res(cells_all["solar"], solar_frames),
+        "cell_radius_m": {str(r): round(cell_radius_m(r), 2) for r in sorted(RESOLUTIONS)},
         "cells_per_res": {str(k): v for k, v in sorted(cells_all["solar"].items())},
         "cells_per_res_per_axis": {
             a: {str(k): v for k, v in sorted(c.items())} for a, c in cells_all.items()
@@ -209,10 +213,19 @@ def run(con: duckdb.DuckDBPyConnection, stats: dict) -> dict:
             "min_n_users_ub": rollup.MIN_USERS,
             "user_cap_per_cell_frame": rollup.USER_CAP_PER_CELL_FRAME,
         },
-        "colour_axes": {
-            "hue": "valence",
-            "chroma": "arousal+density",
-            "lightness": "warmth-grain",
+        "colour_model": {
+            "palette": "Cowen, Fang, Sauter & Keltner (PNAS 2020), 13 dimensions "
+            "of music-evoked emotion; colours as published at "
+            "https://www.ocf.berkeley.edu/~acowen/music.html",
+            "blend": "intensity-weighted mean of the 13 palette colours in Oklab, "
+            f"weights raised to {COWEN_SHARPEN} first",
+            "emotions": {name: PALETTE_SRGB[name][0] for name in EMOTIONS},
+            "labels": LABELS,
+        },
+        "grid": {
+            "kind": "H3 hexagons, resolutions 8 to 1",
+            "drawn_as": "one soft-edged circle per cell, of equal area to the "
+            "hexagon, overlapping its neighbours",
         },
         "dow_labels": DOW_LABELS,
         "geo_enum": GEO_ENUM,

@@ -19,7 +19,9 @@ Mapping, with the one judgement call documented in the README:
 from __future__ import annotations
 
 import duckdb
+import pyarrow as pa
 
+from pipeline import bulk
 from pipeline.oklab import judgement_to_oklab
 
 
@@ -70,15 +72,22 @@ def build(con: duckdb.DuckDBPyConnection, features_table: str = "npr_features") 
             j["valence"], j["arousal"], j["warmth"], j["density"], j["grain"]
         )
         out.append((r[0], r[1], r[2], L, a, b, 1.0, 0, "", "features"))
-    con.execute(
-        "CREATE OR REPLACE TABLE track_colour_baseline("
-        "track_key VARCHAR, artist_norm VARCHAR, title_norm VARCHAR,"
-        "L DOUBLE, a DOUBLE, b DOUBLE, confidence DOUBLE, era INTEGER,"
-        "note VARCHAR, provenance VARCHAR)"
+    bulk.create_table(
+        con,
+        "track_colour_baseline",
+        {
+            "track_key": pa.string(),
+            "artist_norm": pa.string(),
+            "title_norm": pa.string(),
+            "L": pa.float64(),
+            "a": pa.float64(),
+            "b": pa.float64(),
+            "confidence": pa.float64(),
+            "era": pa.int32(),
+            "note": pa.string(),
+            "provenance": pa.string(),
+        },
+        out,
     )
-    if out:
-        con.executemany(
-            "INSERT INTO track_colour_baseline VALUES (" + ",".join("?" * 10) + ")", out
-        )
     print(f"[baseline] {len(out):,} tracks coloured from audio features")
     return {"n_tracks_baseline": len(out)}

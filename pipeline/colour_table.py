@@ -13,8 +13,11 @@ import json
 from pathlib import Path
 
 import duckdb
+import pyarrow as pa
 
+from pipeline import bulk
 from pipeline.colour_model import CACHE, read_cache
+from pipeline.cowen import EMOTIONS, dominant
 from pipeline.oklab import oklch_to_oklab
 
 MIN_CONFIDENCE = 0.25
@@ -30,6 +33,7 @@ def build(con: duckdb.DuckDBPyConnection) -> dict:
         j = rec.get("judgement") or {}
         conf = float(j.get("confidence", 0.0))
         L, a, b = oklch_to_oklab(rec["L"], rec["C"], rec["h"])
+        weights = {name: float(j.get(name, 0.0) or 0.0) for name in EMOTIONS}
         rows.append(
             (
                 key,
@@ -39,25 +43,30 @@ def build(con: duckdb.DuckDBPyConnection) -> dict:
                 conf,
                 int(j.get("era", 0) or 0),
                 j.get("note", ""),
-                float(j.get("valence", 0.0)),
-                float(j.get("arousal", 0.0)),
-                float(j.get("warmth", 0.0)),
-                float(j.get("density", 0.0)),
-                float(j.get("grain", 0.0)),
+                *(weights[name] for name in EMOTIONS),
+                dominant(weights) or "",
                 rec.get("model", "?"),
             )
         )
-    con.execute(
-        "CREATE OR REPLACE TABLE model_judgement("
-        "track_key VARCHAR, artist_norm VARCHAR, title_norm VARCHAR,"
-        "L DOUBLE, a DOUBLE, b DOUBLE, confidence DOUBLE, era INTEGER, note VARCHAR,"
-        "valence DOUBLE, arousal DOUBLE, warmth DOUBLE, density DOUBLE, grain DOUBLE,"
-        "model VARCHAR)"
+    bulk.create_table(
+        con,
+        "model_judgement",
+        {
+            "track_key": pa.string(),
+            "artist_norm": pa.string(),
+            "title_norm": pa.string(),
+            "L": pa.float64(),
+            "a": pa.float64(),
+            "b": pa.float64(),
+            "confidence": pa.float64(),
+            "era": pa.int32(),
+            "note": pa.string(),
+            **{name: pa.float64() for name in EMOTIONS},
+            "dominant": pa.string(),
+            "model": pa.string(),
+        },
+        rows,
     )
-    if rows:
-        con.executemany(
-            "INSERT INTO model_judgement VALUES (" + ",".join("?" * 15) + ")", rows
-        )
 
     con.execute(
         f"CREATE OR REPLACE VIEW all_tracks AS SELECT * FROM '{TRACKS.as_posix()}'"

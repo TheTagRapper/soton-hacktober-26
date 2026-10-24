@@ -1,8 +1,14 @@
 // Legend, panels, counts, about (spec section 10.4).
 
-import { oklabToHex, oklabToSrgb255 } from './colour';
+import {
+  EMOTIONS,
+  EMOTION_LABELS,
+  PALETTE_SRGB,
+  SHARPEN,
+  oklabToHex,
+  oklabToSrgb255,
+} from './colour';
 import type { HexRow } from './grid';
-import { judgementToOklab } from './colour';
 import { frameLabel, sunGlyph } from './time';
 import type { Manifest, Store } from './state';
 
@@ -15,15 +21,12 @@ export interface Notes {
 
 const $ = <T extends HTMLElement>(sel: string): T => document.querySelector<T>(sel)!;
 
-export function hexSwatchRow(): string {
-  // The hue axis, swept from bleak to elated at mid arousal/density/warmth.
-  const stops: string[] = [];
-  for (let i = 0; i <= 12; i++) {
-    const valence = -1 + (2 * i) / 12;
-    const lab = judgementToOklab(valence, 0.55, 0.55, 0.5, 0.15);
-    stops.push(oklabToHex(lab.L, lab.a, lab.b));
-  }
-  return stops.map((c) => `<i style="background:${c}"></i>`).join('');
+/** The thirteen emotions, each in its own colour. Not a ramp -- a key. */
+export function paletteKey(): string {
+  return EMOTIONS.map(
+    (e) =>
+      `<span class="key"><i style="background:${PALETTE_SRGB[e]}"></i>${EMOTION_LABELS[e]}</span>`,
+  ).join('');
 }
 
 function diffRampRow(): string {
@@ -199,11 +202,12 @@ export class UI {
            agree, deep where a language model's impression of the music diverges from its
            measured acoustics. <strong>In this mode the fill is not the music's colour.</strong>
          </p>`
-      : `<div class="ramp">${hexSwatchRow()}</div>
+      : `<div class="keys">${paletteKey()}</div>
          <p class="legend-note">
-           Hue is <strong>valence</strong>, bleak blue to elated amber. Chroma is
-           <strong>arousal and density</strong>. Lightness is <strong>warmth</strong>
-           less <strong>grain</strong>. Opacity carries how much evidence the cell has.
+           Thirteen dimensions of music-evoked emotion and their colours, after
+           <a href="https://www.ocf.berkeley.edu/~acowen/music.html" rel="noreferrer">Cowen
+           et al.</a> Each cell is the blend of what was playing there, mixed in Oklab.
+           Opacity carries how much evidence the cell has.
          </p>`;
   }
 
@@ -216,7 +220,7 @@ export class UI {
     const hex = oklabToHex(row.L, row.a, row.b);
     const C = Math.hypot(row.a, row.b);
     const h = ((Math.atan2(row.b, row.a) * 180) / Math.PI + 360) % 360;
-    const note = this.noteFor(row.cellHex);
+    const note = this.noteFor(row.cell.toString(16));
     const geoName = ['point', 'place centroid', 'city'][row.geo] ?? 'unknown';
     el.innerHTML = `
       <div class="tt-head">
@@ -225,7 +229,7 @@ export class UI {
         <span class="muted">res ${res}</span>
       </div>
       <dl>
-        <dt>cell</dt><dd class="mono">${row.cellHex}</dd>
+        <dt>cell</dt><dd class="mono">r${row.res} · ${row.cell.toString(16)}</dd>
         <dt>plays</dt><dd>${row.n.toLocaleString()}</dd>
         <dt>listeners</dt>
         <dd>${row.nUsers.toLocaleString()} <span class="muted">(upper bound — summed over
@@ -274,14 +278,20 @@ export class UI {
       <p>
         A language model (<code>${m.model}</code>) ran offline, once, over the most-played
         tracks. It was never asked for a colour: language models pick bad RGB triples and
-        cluster on named web colours. It was asked for eight judgements about how the
-        recording <em>sounds</em> — valence, arousal, warmth, density, grain, the decade it
-        sounds like, its own confidence, and one short note — and deterministic code turns
-        those into Oklch:
+        cluster on named web colours. It was asked how strongly a listener would feel each
+        of the <strong>thirteen dimensions of music-evoked emotion</strong> identified by
+        <a href="https://www.ocf.berkeley.edu/~acowen/music.html" rel="noreferrer">Cowen,
+        Fang, Sauter &amp; Keltner (PNAS 2020)</a> — and the song's colour is the blend of
+        that published palette, weighted by those ratings and mixed in Oklab:
       </p>
-      <pre>hue        h = (210 − 150 × valence) mod 360
-chroma     C = 0.02 + 0.13 × (0.65 × arousal + 0.35 × density)
-lightness  L = 0.38 + 0.34 × warmth − 0.10 × grain</pre>
+      <div class="keys">${paletteKey()}</div>
+      <p class="muted">
+        Several of those thirteen colours are near-complementary, so a flat blend of a song
+        that scores moderately on many of them lands on grey — and averaging places
+        together would then grey the whole map. Ratings are raised to the power
+        ${SHARPEN} before blending, which lets the feelings a listener would actually name
+        dominate the ones that merely registered.
+      </p>
       <p>
         All averaging happens on (L, a, b) in Oklab, never on sRGB and never on hue angles;
         averaging hex colours or hue degrees produces grey mud and wraparound artefacts.

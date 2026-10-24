@@ -128,7 +128,29 @@ field twice.
 
 ---
 
-## 4. Basemap
+## 4. The emotion palette
+
+- **Citation:** Cowen, A. S., Fang, X., Sauter, D., & Keltner, D. (2020). *What
+  music makes us feel: At least 13 dimensions organize subjective experiences
+  associated with music across different cultures.* PNAS 117(4), 1924–1934.
+- **Source of the colours:** Alan Cowen's interactive map accompanying that
+  paper, `https://www.ocf.berkeley.edu/~acowen/music.html`, retrieved
+  2026-10-24. The thirteen category labels and the exact sRGB value each is
+  drawn in were read off that page and are reproduced in `pipeline/cowen.py`.
+- **Redistributed here:** only the thirteen colour values and category names —
+  no audio, no clips, no ratings data from the study. The map's own audio
+  samples and participant data are not used.
+- **Derived:** every colour in this project. A track's colour is the
+  intensity-weighted mean of those thirteen palette entries in Oklab, weighted
+  by a local language model's ratings of the track on those thirteen
+  dimensions, with the ratings sharpened (exponent 2.5) before blending. The
+  study's own ratings are *not* used — the model's are. The taxonomy and the
+  palette come from the paper; the per-track ratings do not, and nothing here
+  should be read as a finding of that study.
+
+---
+
+## 5. Basemap
 
 - **OpenFreeMap**, style `positron`, `https://tiles.openfreemap.org/styles/positron`.
   Free, no API key, no registration, no usage limit. Vector tiles built from
@@ -140,7 +162,7 @@ field twice.
 
 ---
 
-## 5. The colour table
+## 6. The colour table
 
 `data/cache/track_colour.jsonl` is committed. It holds one record per track:
 the normalised artist and title, the model tag that produced it, the eight
