@@ -239,7 +239,13 @@ export class UI {
         ${row.dE !== undefined ? `<dt>ΔE</dt><dd class="mono">${row.dE.toFixed(3)}</dd>` : ''}
         <dt>precision</dt><dd>${geoName}</dd>
       </dl>
-      ${note ? `<p class="note">“${note.note}” <span class="muted">— on ${note.artist} — ${note.title}</span></p>` : ''}
+      ${
+        note
+          ? `<p class="note">“${note.note}”
+               <span class="muted">— the model on ${note.artist} — ${note.title}.
+               One of its notes, drawn from the sample, not this cell's top track.</span></p>`
+          : ''
+      }
     `;
     el.hidden = false;
     // Keep the label on screen at phone widths.
@@ -250,7 +256,13 @@ export class UI {
     el.style.top = `${Math.min(window.innerHeight - hgt - pad, Math.max(pad, y + 16))}px`;
   }
 
-  /** A note string, chosen deterministically per cell so hovering is stable. */
+  /** A note string, chosen deterministically per cell so hovering is stable.
+   *
+   *  The specification wanted the note belonging to the cell's own top track.
+   *  The shards deliberately carry no track identity -- only counts and a
+   *  colour -- so that is not available client-side, and inventing an
+   *  association would be a small lie told in a museum label. The tooltip says
+   *  what this actually is instead. */
   private noteFor(cellHex: string): Notes | undefined {
     if (!this.notes.length) return undefined;
     let acc = 0;
