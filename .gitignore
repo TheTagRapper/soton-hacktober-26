@@ -6,3 +6,5 @@ site/dist/
 __pycache__/
 *.pyc
 .env
+data/work/stub_colour.jsonl
+site/public/data/dev/

@@ -32,7 +32,10 @@ import httpx
 
 from pipeline.oklab import judgement_to_oklch
 
-CACHE = Path("data/cache/track_colour.jsonl")
+# Overridable only so that a dev-preview run (pipeline/colour_stub.py) can be
+# kept out of the committed cache. The real cache is the default and is the
+# single most valuable artefact in the repository.
+CACHE = Path(os.environ.get("COLOUR_CACHE", "data/cache/track_colour.jsonl"))
 TRACKS = Path("data/work/tracks.parquet")
 
 SEED = 20260101

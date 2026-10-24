@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+    <title>Chromatic Listening — a world map coloured by the music played on it</title>
+    <meta
+      name="description"
+      content="A world map whose colour is the count-weighted perceptual average of the music being listened to in each hexagonal cell, from geolocated listening events 2011-2013."
+    />
+    <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin />
+  </head>
+  <body>
+    <div id="map" aria-hidden="true"></div>
+
+    <!-- With JavaScript disabled this is the whole page: a legible explanation
+         plus the dataset credits, never a blank screen (spec section 14.8). -->
+    <noscript>
+      <div class="noscript">
+        <h1>Chromatic Listening</h1>
+        <p>
+          This is a world map whose colour is the music being played on it. Over the map
+          sits a hexagonal grid; each cell is filled with one colour, and that colour is
+          the count-weighted perceptual average of the colours assigned — by a language
+          model running offline, in advance — to every song that was actually being
+          listened to inside that cell during the selected window of time. A time
+          scrubber moves the window, and the planet changes colour: regions drift warm
+          and bright in the evening, cold and sparse at 04:00.
+        </p>
+        <p>
+          The map itself needs JavaScript and WebGL to draw. Everything it draws is
+          static files — pre-aggregated hexagon colours — so there is no server and no
+          live data.
+        </p>
+        <h2>Where the data comes from</h2>
+        <ul>
+          <li>
+            <strong>MMTD — Million Musical Tweets Dataset.</strong> Hauger &amp; Schedl,
+            ISMIR 2013, Johannes Kepler University Linz. Approximately 1.1 million
+            geolocated listening events, 2011-11-09 to 2013-04-30.
+            <a href="https://www.cp.jku.at/datasets/MMTD/">cp.jku.at/datasets/MMTD</a>
+          </li>
+          <li>
+            <strong>#nowplaying-RS.</strong> Poddar, Zangerle &amp; Yang, SMC 2018.
+            CC BY 4.0. 11.6 million listening events with per-track audio features, used
+            as the non-model control condition.
+            <a href="https://zenodo.org/records/3248543">zenodo.org/records/3248543</a>
+          </li>
+        </ul>
+        <h2>Honestly</h2>
+        <p>
+          Twitter-sourced listening data from 2011–2013 is biased towards young, urban,
+          anglophone, smartphone-owning people who posted what they were playing. This
+          is a portrait of a dataset, not a portrait of humanity.
+        </p>
+      </div>
+    </noscript>
+
+    <main id="chrome" hidden>
+      <header id="masthead">
+        <h1>Chromatic&nbsp;Listening</h1>
+        <button id="about-open" type="button" aria-expanded="false" aria-controls="about">
+          About
+        </button>
+      </header>
+
+      <div id="readout" role="status" aria-live="polite"></div>
+
+      <section id="controls" aria-label="View controls">
+        <div class="row" id="scrubber-row">
+          <button id="play" type="button" aria-label="Play">▶</button>
+          <span id="frame-label" class="mono"></span>
+          <input id="scrubber" type="range" min="0" max="0" step="1" value="0"
+                 aria-label="Time frame" />
+          <div class="speeds" role="group" aria-label="Playback speed">
+            <button type="button" data-speed="1" class="on">1×</button>
+            <button type="button" data-speed="2">2×</button>
+            <button type="button" data-speed="4">4×</button>
+          </div>
+        </div>
+
+        <div class="row">
+          <fieldset id="axis-switch">
+            <legend>Time axis</legend>
+            <label><input type="radio" name="axis" value="solar" /> solar hour</label>
+            <label><input type="radio" name="axis" value="chrono" /> month</label>
+            <label><input type="radio" name="axis" value="dow" /> weekday</label>
+          </fieldset>
+
+          <fieldset id="src-switch">
+            <legend>Colour source</legend>
+            <label><input type="radio" name="src" value="model" /> model</label>
+            <label><input type="radio" name="src" value="features" /> features</label>
+            <label><input type="radio" name="src" value="difference" /> difference</label>
+          </fieldset>
+
+          <fieldset id="geo-filter">
+            <legend>Location precision</legend>
+            <label><input type="checkbox" name="geo" value="point" checked /> point</label>
+            <label><input type="checkbox" name="geo" value="place_centroid" /> place centroid</label>
+            <label><input type="checkbox" name="geo" value="city" /> city</label>
+          </fieldset>
+        </div>
+
+        <div id="legend"></div>
+      </section>
+
+      <div id="tooltip" role="tooltip" hidden></div>
+
+      <aside id="about" hidden aria-label="About this piece">
+        <button id="about-close" type="button" aria-label="Close">×</button>
+        <div id="about-body"></div>
+      </aside>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
