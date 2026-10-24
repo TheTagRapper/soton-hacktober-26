@@ -1,0 +1,17 @@
+[project]
+name = "chromatic-listening"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+  "duckdb>=1.1",
+  "polars>=1.0",
+  "pyarrow>=17",
+  "h3>=4.1",
+  "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
