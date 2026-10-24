@@ -88,16 +88,15 @@ async function main(): Promise<void> {
     const wantBaseline = s.src === 'features' || s.src === 'difference';
     const haveBaseline = Boolean(manifest.has_baseline);
 
-    const cached = shards.get(s.axis, res, s.frame, wantBaseline && haveBaseline);
-    const loading = !cached;
-    if (loading) {
-      // Show the frame as loading rather than as empty: an empty map that is in
-      // fact still loading is the defect most likely to ship here.
-      const stats = rowStats([]);
-      ui.setReadout(res, stats.cells, stats.plays, true, clamped);
+    const baseline = wantBaseline && haveBaseline;
+    const cached = shards.get(s.axis, res, s.frame, baseline);
+    if (!cached && !shards.isKnownMissing(s.axis, res, s.frame, baseline)) {
+      // Show the frame as loading rather than as empty: an empty map that is
+      // in fact still loading is the defect most likely to ship here.
+      ui.setReadout(res, 0, 0, 'loading', clamped);
     }
 
-    const primary = await shards.load(s.axis, res, s.frame, wantBaseline && haveBaseline);
+    const primary = await shards.load(s.axis, res, s.frame, baseline);
     if (gen !== generation) return;
 
     let rows: HexRow[] = [];
@@ -125,13 +124,13 @@ async function main(): Promise<void> {
       res,
       stats.cells,
       stats.plays,
-      false,
+      visible.length ? 'ok' : 'empty',
       res >= manifest.max_useful_res && map.getZoom() > 11,
     );
 
     // Prefetch the frames playback is about to need.
     for (const f of playback.lookahead()) {
-      if (f !== s.frame) void shards.load(s.axis, res, f, wantBaseline && haveBaseline);
+      if (f !== s.frame) void shards.load(s.axis, res, f, baseline);
     }
   }
 

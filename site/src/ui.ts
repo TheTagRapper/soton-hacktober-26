@@ -180,16 +180,38 @@ export class UI {
     $('#play').setAttribute('aria-label', this.store.state.playing ? 'Pause' : 'Play');
   }
 
-  /** "res 6 / 4,218 cells / 1.1M plays" — never let the viewer guess. */
-  setReadout(res: number, cells: number, plays: number, loading: boolean, clamped: boolean): void {
+  /** "res 6 / 4,218 cells / 1.1M plays" — never let the viewer guess.
+   *
+   *  Three states have to be distinguishable or the map lies by omission:
+   *  still loading, loaded with cells, and loaded with nothing to show
+   *  because nothing here cleared the suppression threshold. */
+  setReadout(
+    res: number,
+    cells: number,
+    plays: number,
+    state: 'loading' | 'ok' | 'empty',
+    clamped: boolean,
+  ): void {
     const fmt = (n: number) =>
       n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(n);
+    const el = $('#readout');
+    if (state === 'loading') {
+      el.textContent = `res ${res} / loading…`;
+      el.classList.add('loading');
+      return;
+    }
+    el.classList.remove('loading');
     const bits = [`res ${res}`, `${cells.toLocaleString()} cells`, `${fmt(plays)} plays`];
     if (clamped) bits.push(`max useful res ${this.manifest.max_useful_res}`);
-    // A frame still loading is shown as loading, never as empty.
-    if (loading) bits.push('loading…');
-    $('#readout').textContent = bits.join(' / ');
-    $('#readout').classList.toggle('loading', loading);
+    if (state === 'empty' || cells === 0) {
+      const sup = this.manifest.suppression;
+      bits.push(
+        `nothing here clears the threshold${
+          sup ? ` (${sup.min_n} plays by ${sup.min_n_users_ub} listeners)` : ''
+        }`,
+      );
+    }
+    el.textContent = bits.join(' / ');
   }
 
   renderLegend(): void {
