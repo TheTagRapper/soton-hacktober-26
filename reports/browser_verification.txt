@@ -1,0 +1,14 @@
+[world] readout: res 1 / 159 cells / 33.9k plays
+[world] readout after 6 frames: res 1 / 88 cells / 5.0k plays
+[world] 32.8% of the map area differs between 21:00 and 03:00
+[world] console warnings (not failures): 34
+[zoom] z2 -> res 1 / 159 cells / 33.9k plays ; z4 -> res 2 / 97 cells / 7.0k plays ; z6 -> res 4 / 101 cells / 3.5k plays ; z8 -> res 5 / 16 cells / 388 plays ; z10 -> res 6 / 11 cells / 247 plays ; z12 -> res 7 / 3 cells / 178 plays / max useful res 7
+[zoom] console warnings (not failures): 36
+[hash] reloaded to #axis=chrono&frame=2012-06&src=model&geo=point&z=5.00&lat=40.7128&lon=-74.0060&playing=0 showing Jun 2012
+[nojs] 2406 characters of explanation and credits rendered
+[reduced-motion] autoplay requested in the hash; frame ☾ 21:00 -> ☾ 21:00
+[reduced-motion] manual step still works: ☾ 21:00 -> ☾ 22:00
+[phone] 390x844 rendered; horizontal overflow: false
+[first-paint] low-resolution solar frame drawn in 1317 ms (local server, unthrottled)
+
+No problems found.

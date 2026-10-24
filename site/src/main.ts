@@ -3,7 +3,7 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
 import { Grid, ResolutionPicker, composeDifference, composeFrame, filterToViewport, rowStats, type HexRow } from './grid';
-import { createMap } from './map';
+import { STYLES, createMap } from './map';
 import { ShardStore } from './shards';
 import { Store, type Manifest } from './state';
 import { Playback } from './time';
@@ -74,6 +74,15 @@ async function main(): Promise<void> {
     if (changed.has('frame')) {
       ui.syncScrubber();
       void refresh();
+    }
+    if (changed.has('base')) {
+      // setStyle replaces every layer, which takes the interleaved overlay
+      // with it; re-add it once the new style is in and redraw.
+      map.setStyle(STYLES[store.state.base]);
+      map.once('styledata', () => {
+        map.addControl(grid.overlay);
+        void refresh();
+      });
     }
   });
 

@@ -12,6 +12,7 @@
 export type Axis = 'solar' | 'chrono' | 'dow';
 export type Source = 'model' | 'features' | 'difference';
 export type Geo = 'point' | 'place_centroid' | 'city';
+export type Basemap = 'dark' | 'light';
 
 export interface ViewState {
   axis: Axis;
@@ -23,6 +24,7 @@ export interface ViewState {
   lon: number;
   playing: boolean;
   speed: number;
+  base: Basemap;
 }
 
 export const DEFAULTS: ViewState = {
@@ -35,12 +37,14 @@ export const DEFAULTS: ViewState = {
   lon: 0,
   playing: false,
   speed: 1,
+  base: 'dark', // the colour field is the subject; it reads against black
 };
 
 const AXES: Axis[] = ['solar', 'chrono', 'dow'];
 const SOURCES: Source[] = ['model', 'features', 'difference'];
 const GEOS: Geo[] = ['point', 'place_centroid', 'city'];
 const SPEEDS = [1, 2, 4];
+const BASEMAPS: Basemap[] = ['dark', 'light'];
 
 type Listener = (s: ViewState, changed: Set<keyof ViewState>) => void;
 
@@ -124,6 +128,8 @@ export class Store {
     out.playing = p.get('playing') === '1';
     const speed = Number(p.get('speed'));
     out.speed = SPEEDS.includes(speed) ? speed : DEFAULTS.speed;
+    const base = p.get('base');
+    if (base && (BASEMAPS as string[]).includes(base)) out.base = base as Basemap;
     return out;
   }
 
@@ -144,6 +150,7 @@ export class Store {
         playing: s.playing ? '1' : '0',
       });
       if (s.speed !== 1) p.set('speed', String(s.speed));
+      if (s.base !== DEFAULTS.base) p.set('base', s.base);
       history.replaceState(null, '', `#${p.toString()}`);
     }, 250);
   }

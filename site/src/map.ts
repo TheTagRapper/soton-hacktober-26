@@ -6,14 +6,28 @@
 // visualisation would make every hex a lie.
 
 import maplibregl from 'maplibre-gl';
-import type { Store } from './state';
+import type { Basemap, Store } from './state';
 
-export const STYLE_URL = 'https://tiles.openfreemap.org/styles/positron';
+// Two near-monochrome OpenFreeMap styles: free, no API key, no registration,
+// no usage limit, OpenStreetMap data. The basemap must recede -- the colour
+// field is the subject -- so neither carries colour of its own, and both keep
+// their boundaries, roads and labels drawn *over* the colour.
+//
+// Dark is the default: thirteen saturated hues read far better against it than
+// against white, and the map this palette comes from is itself on black. The
+// light style is one click away for anyone who wants to read the geography
+// first.
+export const STYLES: Record<Basemap, string> = {
+  dark: 'https://tiles.openfreemap.org/styles/dark',
+  light: 'https://tiles.openfreemap.org/styles/positron',
+};
+
+export const STYLE_URL = STYLES.dark;
 
 export function createMap(container: HTMLElement, store: Store): maplibregl.Map {
   const map = new maplibregl.Map({
     container,
-    style: STYLE_URL,
+    style: STYLES[store.state.base],
     center: [store.state.lon, store.state.lat],
     zoom: store.state.z,
     minZoom: 0,

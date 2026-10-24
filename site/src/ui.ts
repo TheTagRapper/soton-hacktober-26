@@ -96,6 +96,12 @@ export class UI {
         }
       });
     }
+    for (const el of document.querySelectorAll<HTMLInputElement>('input[name=base]')) {
+      el.checked = el.value === s.base;
+      el.addEventListener('change', () => {
+        if (el.checked) this.store.patch({ base: el.value as never });
+      });
+    }
     for (const el of document.querySelectorAll<HTMLInputElement>('input[name=geo]')) {
       el.checked = s.geo.includes(el.value as never);
       el.addEventListener('change', () => {

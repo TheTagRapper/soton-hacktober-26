@@ -12,6 +12,7 @@ table; the group-bys stay in DuckDB SQL exactly as specified.
 
 from __future__ import annotations
 
+import datetime
 import os
 import random
 from pathlib import Path
@@ -38,6 +39,12 @@ AXES = ("solar", "chrono", "dow")
 def connect(path: Path | None = None) -> duckdb.DuckDBPyConnection:
     con = duckdb.connect(str(path or DB))
     con.execute("PRAGMA threads=8")
+    # DuckDB hands TIMESTAMP values back in the *session* timezone, which
+    # defaults to the build machine's. Unpinned, a machine in Europe/London
+    # reports .hour one higher than UTC for every summer event, which would
+    # rotate the solar axis -- the view this whole project exists for -- by an
+    # hour for half the dataset, differently on every developer's machine.
+    con.execute("SET TimeZone='UTC'")
     return con
 
 
@@ -63,13 +70,19 @@ def load_inputs(con: duckdb.DuckDBPyConnection, colour_table: str) -> None:
     indexed = []
     for event_id, lat, lon, ts, tz in rows:
         cell = spatial.cell_at(lat, lon, BASE_RES)
+        # Belt and braces with the session TimeZone pinned in connect(): make
+        # the instant UTC here too, so this function is correct whoever calls
+        # it and with whatever connection.
+        ts = (
+            ts.astimezone(datetime.UTC)
+            if ts.tzinfo is not None
+            else ts.replace(tzinfo=datetime.UTC)
+        )
         hour, src = spatial.solar_hour(ts.hour, ts.minute, lon, tz)
         # Local wall clock, for the chrono and dow axes.
         off = tz if tz is not None else int(round(lon / 15.0 * 60))
         local = ts.timestamp() + off * 60
-        import datetime as _dt
-
-        ld = _dt.datetime.fromtimestamp(local, _dt.UTC)
+        ld = datetime.datetime.fromtimestamp(local, datetime.UTC)
         indexed.append(
             (
                 event_id,

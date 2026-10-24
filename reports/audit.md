@@ -1,6 +1,6 @@
 # Audit — Chromatic Listening
 
-Built 2026-10-24T12:18:08Z · data version `dev`
+Built 2026-10-24T12:47:46Z · data version `dev`
 · colour model `stub:dev-preview` via `llamacpp`
 
 ## Ingestion
@@ -40,14 +40,14 @@ Events whose track has a colour: **750,760 of 1,086,546** (69.1%). The remainder
 |---|---|
 | cell-frames before suppression (res 8, solar) | 200,349 |
 | cell-frames after suppression (res 8, solar) | 8,959 |
-| events removed by the per-user cap (solar) | 0 |
+| events removed by the per-user cap (solar) | 203,987 |
 | events behind suppressed cell-frames | 295,366 |
 
 ## Cells per resolution per axis (after suppression)
 
 | axis | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 |
 |---|---|---|---|---|---|---|---|---|
-| solar | 3,343 | 7,493 | 13,193 | 16,304 | 18,384 | 17,103 | 13,032 | 8,965 |
+| solar | 3,352 | 7,581 | 13,330 | 16,459 | 18,580 | 17,129 | 12,996 | 8,957 |
 | chrono | 2,685 | 6,180 | 10,888 | 14,007 | 16,166 | 15,515 | 11,685 | 7,380 |
 | dow | 1,356 | 3,506 | 7,608 | 11,559 | 14,890 | 16,897 | 14,229 | 8,959 |
 
