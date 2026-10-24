@@ -47,6 +47,14 @@ async function main(): Promise<void> {
   const picker = new ResolutionPicker(store.state.z, manifest.max_useful_res);
 
   const map = createMap(document.getElementById('map')!, store);
+  // Exposed for the browser verification script (tests/verify_browser.mjs)
+  // and for poking at a deployed build from the console. Read-only in spirit;
+  // nothing in the app reads these back.
+  Object.assign(window as unknown as Record<string, unknown>, {
+    __map: map,
+    __store: store,
+    __manifest: manifest,
+  });
   const grid = new Grid(map, { reducedMotion }, (row, x, y) =>
     ui.tooltip(row, x, y, picker.current()),
   );

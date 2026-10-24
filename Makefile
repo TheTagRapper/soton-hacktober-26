@@ -18,8 +18,8 @@ LLAMA_HOST       ?= http://127.0.0.1:8080
 LLAMA_THREADS    ?= 14
 LLAMA_PARALLEL   ?= 6
 
-.PHONY: all setup fetch fetch-npr schema normalise colour baseline rollup export \
-        audit test serve-model stop-model dev build clean
+.PHONY: all setup fetch fetch-npr schema normalise colour colour-stub baseline \
+        rollup export audit test verify serve-model stop-model dev build preview clean
 
 all: fetch schema normalise colour rollup export audit build
 
@@ -72,12 +72,27 @@ stop-model:
 
 test:
 	$(PY) -m pytest tests -q
+	cd site && npx tsc --noEmit
+
+# Dev-preview judgements, so the front end can be worked on before a long
+# inference pass finishes. Refuses to touch the real cache.
+colour-stub:
+	COLOUR_CACHE=data/work/stub_colour.jsonl $(PY) -m pipeline.colour_stub
+	COLOUR_CACHE=data/work/stub_colour.jsonl DATA_VERSION=dev $(PY) -m pipeline.build
+
+# Real-browser verification of section 14 items 5-10. Needs a server already
+# running: `make dev` in another shell, or `make preview` for the built site.
+verify:
+	cd site && node ../tests/verify_browser.mjs $${VERIFY_URL:-http://localhost:5173} ../reports/browser
 
 dev:
 	cd site && npm run dev
 
 build:
 	cd site && npm run build
+
+preview:
+	cd site && npm run preview -- --port 4173
 
 clean:
 	rm -rf data/work/* site/dist

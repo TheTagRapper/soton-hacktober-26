@@ -157,7 +157,10 @@ def run(con: duckdb.DuckDBPyConnection, stats: dict) -> dict:
         "dow": "local day of week",
     }
     for axis in rollup.AXES:
-        rollup.build_pyramid(con, axis, "track_colour", "agg")
+        # Carries {axis}_capped_events and per-resolution row counts, which
+        # reports/audit.md reports; dropping them silently made the audit
+        # claim the per-user cap removed nothing.
+        stats.update(rollup.build_pyramid(con, axis, "track_colour", "agg"))
         frames, cells, files = export_axis(con, axis, OUT / axis, "agg")
         n_files += files
         axes_meta[axis] = {"frames": frames, "label": labels[axis]}
@@ -174,7 +177,7 @@ def run(con: duckdb.DuckDBPyConnection, stats: dict) -> dict:
     )
     if has_baseline:
         for axis in rollup.AXES:
-            rollup.build_pyramid(con, axis, "track_colour_baseline", "bagg")
+            stats.update(rollup.build_pyramid(con, axis, "track_colour_baseline", "bagg"))
             _, _, files = export_axis(con, axis, OUT / "baseline" / axis, "bagg")
             n_files += files
 
